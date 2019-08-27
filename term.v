@@ -4,15 +4,30 @@ Require Import STLC_Ref.ty.
 
 (** Var syntax: *)
 Definition Vars := nat.
+(** Addresses syntax:
+
+ we don't really need them to be natural number, we just need a decidable
+ equality and a way to build a 'fresh' one. Using nats make that easy
+*)
 Definition Addrs := nat.
 
-(** Term syntax:*)
+(** Term syntax:
+A term can be:
+ - a variable
+ - a function application
+ - a function abstraction
+ - the unit singleton
+ - a reference over a term
+ - a dereferenced term
+ - an address
+ - an assignation to a reference
+*)
 Inductive Term : Set:=
  | Var : Vars -> Term
  | App : Term -> Term -> Term
  | La  : Ty -> Term -> Term
  | unit : Term
- | ref : Term -> Term 
+ | ref : Term -> Term
  | deref : Term -> Term
  | Addr : Addrs -> Term
  | Assign : Term -> Term -> Term
@@ -23,6 +38,13 @@ Notation "# v" := (Var v) (at level 1).
 Notation "'λ' [ T ] , v " := (La T v) (at level 20, T , v at level 30).
 Notation "M :=: N" := (Assign M N) (at level 25).
 Reserved Notation " t ↑ x # n " (at level 5, x at level 0, left associativity).
+
+(* Disclaimner:
+ *
+ *
+ * The rest of the file is about DeBruijn indexes support,
+ * feel free to skip it
+ *)
 
 (** In order to deal with variable bindings and captures, we need a lift
 function to deal with free and bounded variables.
@@ -44,7 +66,8 @@ Fixpoint lift_rec (n:nat) (k:nat) (T:Term) {struct T} := match T with
 
 Notation " t ↑ n " := (lift_rec n 0 t) (at level 5, n at level 0, left associativity).
 
-(** Some basic properties of the lift function. That is everything we will
+(* begin hide *)
+(* Some basic properties of the lift function. That is everything we will
 ever need to handle de Bruijn indexes *)
 
 Lemma inv_lift : forall M N n m , M ↑ n # m = N ↑ n # m -> M = N.
@@ -131,6 +154,8 @@ intros.
 apply liftP3; intuition.
 Qed.
 
+(* end hide *)
+
 (** We will consider the usual implicit substitution without variable capture
 (this is where the lift operator comes in handy).
   [ M [ n ← N ] ] replace the variable [n] in [M] by the term [N].
@@ -156,7 +181,8 @@ end
 
 Notation " t [ ← w ] " := (subst_rec w t 0) (at level 5).
 
-(** Some basic properties of the substitution function. Again, we will only need
+(* begin hide *)
+(* Some basic properties of the substitution function. Again, we will only need
 a few functions to deal with indexes. *)
 
 Lemma substP1: forall M N i j k , 
@@ -262,3 +288,4 @@ Proof.
 intros.
 rewrite plus_comm. change n with (O+n). apply substP4.
 Qed.
+(* end hide *)

@@ -10,10 +10,12 @@ so we are limited to prove Subject Reduction in the empty context only.
 
 TODO: read / understand / formalize the proof about normalization :D
 
-[1] https://www-apr.lip6.fr/~demangeon/Recherche/impfun2.pdf
-
 # Install
 ```
-# install a recent coq, like 8.8 using opam
+# install a recent coq, like 8.8 using opam (see [2])
+
 make
 ```
+
+[1] https://www-apr.lip6.fr/~demangeon/Recherche/impfun2.pdf
+[2] https://coq.inria.fr/opam-using.html

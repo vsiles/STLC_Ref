@@ -1,6 +1,13 @@
 Require Import STLC_Ref.term STLC_Ref.ty.
 Require Import Arith Omega List.
 
+(** 'value' definition.
+
+  Note that we are going to work with a call-by-value reduction, so we
+  could remove the variable which don't make sense in an empty context,
+  but in practice, it doesn't harm so keeping the usual definition is
+  not a problem.
+*)
 Definition is_value (t: Term) : Prop :=
   match t with
   | # v => True
@@ -10,6 +17,7 @@ Definition is_value (t: Term) : Prop :=
   | _ => False
   end.
 
+(* begin hide *)
 Lemma is_value_lift: forall T, is_value T -> forall n k, is_value (lift_rec n k T).
 Proof.
 destruct T as [ v | ? ? | ? ? | | ? | ? | ? | ? ? ]; intros hT n k; simpl;
@@ -25,12 +33,17 @@ destruct T as [ v | ? ? | ? ? | | ? | ? | ? | ? ? ]; intros hT n V hV; simpl;
 destruct lt_eq_lt_dec as [ [] | ]; try now idtac.
 now apply is_value_lift.
 Qed.
+(* end hide *)
 
-(* A memory is a partial map from addresses to untyped terms.
-   The typing part will be done by an external map in sr.v
+(**
+ A memory is a partial map from addresses to untyped terms.
+ The typing part will be done by an external map in sr.v.
+ All terms in a memory should be regarded as well-typed term _in the empty
+ context_.
 *)
 Definition Mem := list (Addrs * Term).
 
+(* begin hide *)
 (* Operators to apply lift/subst to memories *)
 Definition lift_mem n k mem :=
     map (fun (aM: Addrs * Term) =>
@@ -40,9 +53,10 @@ Definition subst_mem V mem n :=
     map (fun (aM: Addrs * Term) =>
     let '(a,  M) := aM in (a, subst_rec V M n))
     mem.
+(* end hide *)
 
-(* Check if an address is bound by some generic map (will be used 
-   for memories and type stores
+(** Check if an address is bound by some generic map (will be used 
+   for memories and type stores)
 *)
 (* TODO: utiliser existsb ? *)
 Fixpoint InAddr {T: Type} u (l: list (Addrs * T)) := 
@@ -51,6 +65,7 @@ Fixpoint InAddr {T: Type} u (l: list (Addrs * T)) :=
     | (a, _) :: tl => if eq_nat_dec a u then True else InAddr u tl 
     end.
 
+(* begin hide *)
 Lemma InAddr_lift_inv : forall u mem n k,
     InAddr u (lift_mem n k mem) -> InAddr u mem.
 Proof.
@@ -68,8 +83,9 @@ intros u; induction mem as [ | [a W] tl hi]; intros n k h; simpl in *;
 destruct Nat.eq_dec as [heq | hne ]; [now idtac| ].
 now eapply hi; apply h.
 Qed.
+(* end hide *)
 
-(* Bind a new address in a map *)
+(** Bind a new address in a map with some value *)
 Definition bindAddr {T : Type} (a: Addrs) (t: T) (l : list (Addrs * T)) :=
     (a, t) :: l.       
 
@@ -87,6 +103,7 @@ intro t; induction l as [ | [x y] tl hi]; intros a u T; simpl in *.
     destruct h; subst; now destruct Nat.eq_dec.
 Qed.
 
+(* begin hide *)
 Lemma bindMem_lift : forall a t m n k, lift_mem n k (bindAddr a t m) =
      bindAddr a (lift_rec n k t) (lift_mem n k m).
 Proof.
@@ -98,9 +115,10 @@ Lemma bindMem_subst: forall a t V m n, subst_mem V (bindAddr a t m) n =
 Proof.
     now intros.
 Qed.
+(* end hide *)
 
-(* Tries to find the associated values to an address in a map. Might 
-   fail (returns None)
+(** Tries to find the associated value to an address in a map.
+  If the value is not bound, it will return None.
 *)
 Fixpoint readAddr {T: Type} (u: Addrs) (l: list (Addrs * T)) :=
     match l with
@@ -109,6 +127,7 @@ Fixpoint readAddr {T: Type} (u: Addrs) (l: list (Addrs * T)) :=
             readAddr u tl
     end.
 
+(* begin hide *)
 Lemma readMem_lift_none: forall u m, readAddr u m = None ->
     forall n k, readAddr u (lift_mem n k m) = None.
 Proof.
@@ -141,6 +160,7 @@ intro u; induction m as [ | [a U] tl hi]; intros V heq W n; simpl in *;
 destruct Nat.eq_dec; [ injection heq; intros ; now subst | ].
 now apply hi.
 Qed.
+(* end hide *)
 
 Lemma read2In: forall (T: Type) l u (t : T), readAddr u l = Some t ->
     InAddr u l.
@@ -171,7 +191,17 @@ induction D1 as [ | [a v] tl hi]; intros u t heq D2.
   now apply hi.
 Qed.
 
-(* Call by Value *)
+(** Call by Value based on traditional $\beta$ reduction extended
+to deal with references:
+- (λ[x:A], M)•N → M[[x/N]]
+- (mem, ref M) → (mem + (u, M), u) for any u not bound in mem 
+- (mem, deref u) → (mem, mem(u))
+- (mem, u := M) → (mem + (u, M), unit)
+- usual contextual extension to make it a congruence
+
+Since we need a memory to interprete the addresses, the reduction relation
+associate a term and a memory to a new term and a new memory.
+*)
 Inductive red : Term -> Mem -> Term -> Mem -> Prop :=
 (* Head reduction *)
   | rBeta : forall A M V mem, is_value V ->
@@ -195,6 +225,7 @@ Inductive red : Term -> Mem -> Term -> Mem -> Prop :=
           red (V :=: N) m1 (V :=: N') m2
 .
 
+(* begin hide *)
 Lemma red_lift: forall m1 m2 M N, red M m1 N m2 -> forall n m,
     red (M ↑ n # m) (lift_mem n m m1) (N ↑ n # m) (lift_mem n m m2).
 Proof.
@@ -263,3 +294,4 @@ intros l hin.
 apply fresh_is_greater in hin.
 now apply lt_irrefl in hin.
 Qed.
+(* end hide *)

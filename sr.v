@@ -1,8 +1,12 @@
 Require Import List Arith Omega.
 Require Import STLC_Ref.term STLC_Ref.ty STLC_Ref.env STLC_Ref.red.
 
-(* This map is used as truth source to type memories: each address in the
-   the map is associated with a typ. The idea is that memories should be
+(** So far memories where not typed. We are going to use a second storage
+    in our typing judgement to keep track of the type of terms associated
+    to any addresses.
+
+   This map is used as truth source to type memories: each address in the
+   the map is associated with a type. The idea is that memories should be
    typed in the empty context, so we get something like:
    
    forall address a in a memory m typed by a type store D,
@@ -10,6 +14,7 @@ Require Import STLC_Ref.term STLC_Ref.ty STLC_Ref.env STLC_Ref.red.
 *)
 Definition TStore := list (Addrs * Ty).
 
+(* begin hide *)
 (* Type store inclusion *)
 Definition InclTStore {T: Type} D1 D2 := forall u (t: T),
     readAddr u D1 = Some t -> readAddr u D2 = Some t.
@@ -26,17 +31,19 @@ intros T D D1 D2 hin x M hx.
 apply readAddr_app.
 now apply hin.
 Qed.
+(* end hide *)
 
-(* Typing judgement for terms. It is STLC extended with references as
- * described in https://www-apr.lip6.fr/~demangeon/Recherche/impfun2.pdf
- * with minor tweaks to be able to mechanism the proofs:
- * - Addition of the type store D instead of having typed variables,
- *   which break the hard mutual dependency between reduction and typing
- * - Subject Reduction is proved in the empty context (as usual for call
- *   by value reductions). This removes the need for memories to be only
- *   values.
- * TODO: try to extend to a full result
- *)
+(** * Typing judgement for terms.
+
+It is STLC extended with references as
+described in https://www-apr.lip6.fr/~demangeon/Recherche/impfun2.pdf
+with minor tweaks to be able to mechanism the proofs:
+- Addition of the type store D instead of having typed variables,
+  which break the hard mutual dependency between reduction and typing
+- Subject Reduction is proved in the empty context (as usual for call
+  by value reductions). This removes the need for memories to be only
+  values.
+*)
 Inductive typ : Env -> TStore -> Term -> Ty -> Prop :=
  | cVar  : forall Γ D A v, A ↓ v ∈ Γ -> typ Γ D (#v) A
  | cLa   : forall Γ D A B M, typ (A::Γ) D M B -> typ Γ D (λ[A], M) (A ⇒ B)
@@ -50,6 +57,7 @@ Inductive typ : Env -> TStore -> Term -> Ty -> Prop :=
  | cDrf  : forall Γ D M A, typ Γ D M (Ref A) -> typ Γ D (deref M)  A
 .
 
+(* begin hide *)
 Hint Constructors typ.
 
 Lemma InclTStore_typ: forall Γ D1 M T, typ Γ D1 M T -> forall D2,
@@ -63,9 +71,10 @@ induction 1 as [ ? ? ? v hin | ? ? ? ? ? h hi | ? ? ? ? ? ? h1 hi1 h2 hi2 |
 constructor.
 now apply hincl.
 Qed.
+(* end hide *)
 
-(* a type store D types a memory m if they map the same set of addresses
- * and types in D type the corresponding term in m in the empty context *)
+(** A type store D types a memory m if they map the same set of addresses
+ and types in D type the corresponding term in m in the empty context *)
 Definition WfTStore D mem :=
     (forall u, InAddr u D <-> InAddr u mem) /\
     (* (length D = length mem) /\ *)
@@ -153,6 +162,7 @@ induction 1 as [ ? ? ? v hin | ? ? ? ? ? h hi | ? ? ? ? ? ? h1 hi1 h2 hi2 |
 - now constructor.
 Qed.
 
+(* begin hide *)
 (* Adding a fresh variable to a type store doesn't change existing typing 
  * judgements
  *)
@@ -208,8 +218,9 @@ intros D mem u V A [h1 h2] htyp hin; split.
     intro h; apply bindAddr_thinning; [ assumption | ].
     intro hh; apply hin; now apply h1.
 Qed.
+(* end hide *)
 
-(* Subject Reduction *)
+(** Subject Reduction *)
 (* TODO: clean a bit the script *)
 Lemma SR: forall Γ D M T, typ Γ D M T -> forall m1 m2 N,
     Γ = nil -> red M m1 N m2 -> WfTStore D m1 ->
@@ -321,6 +332,8 @@ induction 1 as [ ? ? ? v hin | ? ? ? ? ? h hi | ? ? ? ? ? ? h1 hi1 h2 hi2 |
     * now constructor.
 Qed.
 
+(** Progress *)
+(* begin hide *)
 Lemma Progress_: forall Γ D M T, typ Γ D M T -> Γ = nil ->
     forall m1, WfTStore D m1 ->
     (exists N, exists m2, red M m1 N m2) \/ is_value M.
@@ -359,6 +372,7 @@ induction 1 as [ ? ? ? v hin | ? ? ? ? ? h hi | ? ? ? ? ? ? h1 hi1 h2 hi2 |
       apply In2read in H3 as [ ? hh].
       now rewrite hh in hr; discriminate.
 Qed.
+(* end hide *)
 
 Lemma Progress: forall D M T, typ nil D M T -> 
     forall m1, WfTStore D m1 ->
